@@ -1,0 +1,188 @@
+package models
+
+import (
+	"errors"
+	"io"
+	"log"
+	"mime/multipart"
+	"ms-api/config"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+type Video struct {
+	ID        int       `json:"id" gorm:"primaryKey"`
+	UserID    string    `json:"userID,omitempty"`
+	Title     string    `json:"title,omitempty"`
+	CreatedAt time.Time `json:"createdAt,omitempty" gorm:"autoCreateTime"`
+	UpdatedAt        time.Time      `json:"updatedAt,omitempty" gorm:"autoUpdateTime"`
+	TotalViews       int64          `json:"totalViews" gorm:"column:total_views;->"`
+	AverageRate      float64        `json:"averageRate" gorm:"column:average_rate;->"`
+	File             multipart.File `json:"-" gorm:"-"`
+	UploadedFilePath string         `json:"-" gorm:"-"`
+	Ctx              *gin.Context   `json:"-" gorm:"-"`
+}
+
+// GetVideo は指定されたIDのビデオレコードをデータベースから取得する。
+// videoID: 取得したいビデオのID
+// 戻り値: ビデオオブジェクトとエラー
+func GetVideo(videoID int) (*Video,error) {
+	video := Video{}
+
+	if err := DbConnection.First(&video,videoID).Error; err != nil {
+		return nil,err
+	}
+	return &video,nil
+}
+
+// CreateVideo は指定されたユーザーIDとタイトルで新しいビデオレコードをデータベースに作成する。
+// userID: ビデオを所有するユーザーのID
+// title: ビデオのタイトル
+// 戻り値: 作成されたビデオオブジェクトとエラー
+func CreateVideo(userID,title string) (*Video,error) {
+	v := &Video{
+		UserID: userID,
+		Title: title,
+	}
+	if err := DbConnection.Create(&v).Error; err != nil {
+		return nil,err
+	}
+	return v,nil
+}
+
+// Update は現在のビデオオブジェクトの内容をデータベースに保存して更新する。
+// 戻り値: 更新に失敗した場合のエラー
+func (v *Video) Update() error {
+	if err := DbConnection.Save(v).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// Delete は現在のビデオレコードをデータベースから削除する。
+// 戻り値: 削除に失敗した場合のエラー
+func (v *Video) Delete() error {
+	if err := DbConnection.Delete(v).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// makeProcessingDirectory はビデオIDをもとにビデオ処理用のディレクトリを作成する。
+// ビデオIDをディレクトリ名とした処理用フォルダを設定パスに作成する。
+// 戻り値: 作成したディレクトリのパスとエラー
+func (v *Video) makeProcessingDirectory() (string,error) {
+	path := filepath.Join(config.Config.AssetsUploadDirPath,strconv.Itoa(v.ID))
+	if err := os.MkdirAll(path,0755); err != nil {
+		return "",err
+	}
+	return path,nil
+}
+
+// saveUploadedVideo はアップロードされたビデオファイルを処理用ディレクトリに保存する。
+// 処理ディレクトリを作成してから、アップロードファイルをコピーして保存する。
+// また、保存したファイルの絶対パスをv.UploadedFilePathに設定する。
+// 戻り値: ファイル保存に失敗した場合のエラー
+func (v *Video) saveUploadedVideo() error {
+	processingDirectory,err := v.makeProcessingDirectory()
+	if err != nil {
+		return err
+	}
+	uploadedVideoFilePath := filepath.Join(processingDirectory, config.Config.AssetsThumbnailFileName)
+
+	newFile,err := os.Create(uploadedVideoFilePath)
+	if err != nil {
+		return err
+	}
+
+	defer newFile.Close()
+	if _,err := io.Copy(newFile,v.File); err != nil {
+		return err
+	}
+	absUploadedVideoFilePath, err := filepath.Abs(uploadedVideoFilePath)
+
+	if err != nil {
+		return err
+	}
+	v.UploadedFilePath = absUploadedVideoFilePath
+	return nil
+}
+
+// ConvertVideo はアップロードされたビデオを保存してから、外部スクリプトを使用してビデオを変換する。
+// saveUploadedVideoでファイルを保存した後、設定されたスクリプトを実行して指定解像度に変換する。
+// 変換完了後、アップロード元のファイルは削除される。
+// 戻り値: ビデオ変換に失敗した場合のエラー
+func (v *Video) ConvertVideo() error {
+	if err := v.saveUploadedVideo(); err != nil {
+		return err
+	}
+
+	dstDirPath,_ := filepath.Abs(filepath.Join(config.Config.AssetsDirPath,strconv.Itoa(v.ID)))
+
+	cmd := exec.CommandContext(v.Ctx,"/bin/sh",config.Config.ConvertVideoScriptFilePath,
+	v.UploadedFilePath,dstDirPath,config.Config.ConvertVideoResolution)
+
+	log.Println(cmd)
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	os.RemoveAll(v.UploadedFilePath)
+
+	return nil
+
+}
+
+// VideoUpload はアップロードされたビデオファイルとメタデータで新しいビデオレコードをデータベースに作成する。
+// トランザクション処理を使用して、ctx.Done()でリクエストキャンセルが検出された場合はロールバックされる。
+// ctx: Ginのリクエストコンテキスト（キャンセル検出用）
+// userID: ビデオを所有するユーザーのID
+// title: ビデオのタイトル
+// file: アップロードされたビデオファイル
+// 戻り値: 作成されたビデオオブジェクトとエラー
+func VideoUpload(ctx *gin.Context, userID,title string, file multipart.File) (*Video, error) {
+	tx := DbConnection.Begin()
+
+	v := Video{
+		UserID: userID,
+		Title: title,
+		File: file,
+		Ctx: ctx,
+	}
+
+	if err := tx.Create(&v).Error; err != nil {
+		return nil,err
+	}
+
+	select {
+	case <-ctx.Done():
+		tx.Rollback()
+		return nil,ctx.Err()
+
+	default:
+		tx.Commit()
+		return &v,nil
+	}
+
+}
+
+type VideoSortType string
+
+const (
+	VideoSortTypePopular   VideoSortType = "popular"
+	VideoSortTypeRecommended VideoSortType= "recommended"
+)
+
+func (v VideoSortType) Valid() error {
+	switch v {
+	case VideoSortTypePopular, VideoSortTypeRecommended:
+		return nil
+	default:
+	return errors.New("invalid type")
+	}
+
+}
