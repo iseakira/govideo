@@ -204,7 +204,9 @@ func VideoList(sortType VideoSortType, limit int, userID string) ([]Video,error)
 		if limit != 0{
 			query.Limit(limit)
 		}
-		query.Find(&videos)
+		if err := query.Find(&videos).Error; err != nil {
+			return nil,err
+		}
 		return videos,nil
 
 	case VideoSortTypeRecommended:
