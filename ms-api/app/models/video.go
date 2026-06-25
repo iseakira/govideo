@@ -1,11 +1,14 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
 	"ms-api/config"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -183,6 +186,88 @@ func (v VideoSortType) Valid() error {
 		return nil
 	default:
 	return errors.New("invalid type")
+	}
+
+}
+
+func VideoList(sortType VideoSortType, limit int, userID string) ([]Video,error) {
+	switch sortType{
+	case VideoSortTypePopular:
+		videos := []Video{}
+		//.ModelはDbConnectionの作業用インスタンスをはやす
+		query := DbConnection.Model(&Video{}).
+		Select("videos.*,COALESCE(v.view_count,0) AS total_views, COALESCE(r.avg_rate,o) AS average_rate").
+		Joins("LEFT JOIN (SELECT video_id, count(id) AS view_count FROM views GROUP BY video_id) AS v ON videos.id = v.video_id").
+		Joins("LEFT JOIN (SELECT video_id, avg(value) AS avg_rate FOM rates GROUP BY video_id) AS r ON videos.id = r.video_id").
+		Order("COALESCE(v.view_count,0) DESC")
+
+		if limit != 0{
+			query.Limit(limit)
+		}
+		query.Find(&videos)
+		return videos,nil
+
+	case VideoSortTypeRecommended:
+	url := fmt.Sprintf("%s/videos/recommende", config.Config.RecommendationAPIURL())
+	request,err := http.NewRequest("GET",url,nil)
+	if err != nil {
+		log.Println(err)
+		return nil,err
+	}
+	params := request.URL.Query()
+	if userID != "" {
+		params.Add("user_id",userID)
+	}
+	if limit != 0{
+		params.Add("limit",strconv.Itoa(limit))
+	}
+	request.URL.RawQuery = params.Encode()
+	log.Printf("url=%s params=%s",url,params)
+	response,err := http.DefaultClient.Do(request)
+
+	if err != nil {
+		return nil,err
+	}
+	defer response.Body.Close()
+
+	byteArray,_ := io.ReadAll(response.Body)
+	videos := []Video{}
+	err = json.Unmarshal(byteArray,&videos)
+	if err != nil {
+		return nil,err
+	}
+	if len(videos) > 0 {
+		ids := make([]int,len(videos))
+		for i,v := range videos {
+			ids[i] = v.ID
+		}
+		type stat struct {
+			VideoID int `gorm:"column:video_id`
+			TotalViews int64 `gorm:"column:total_views"`
+			AverageRate float64 `gorm:"column:average_rate"`
+		}
+		stats := []stat{}
+		DbConnection.Raw(
+			"SELECT v.video_id, COALESCE(v.view_count, 0) AS total_views, COALESCE(r.avg_rate, 0) AS average_rate "+
+					"FROM (SELECT video_id, count(id) AS view_count FROM views WHERE video_id IN ? GROUP BY video_id) AS v "+
+					"FULL OUTER JOIN (SELECT video_id, avg(value) AS avg_rate FROM rates WHERE video_id IN ? GROUP BY video_id) AS r ON v.video_id = r.video_id",
+				ids, ids,
+		).Scan(&stats)
+		statMap := make(map[int]stat,len(stats))
+
+		for _, s := range stats {
+			statMap[s.VideoID] = s
+		}
+		for i,v := range videos {
+			if s,ok := statMap[v.ID]; ok {
+				videos[i].TotalViews = s.TotalViews
+				videos[i].AverageRate = s.AverageRate
+			}
+		}
+	}
+	return videos,nil
+default:
+	return []Video{},nil
 	}
 
 }
