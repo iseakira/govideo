@@ -216,6 +216,7 @@ func VideoList(sortType VideoSortType, limit int, userID string) ([]Video,error)
 		log.Println(err)
 		return nil,err
 	}
+	//.Queryはからのurls.value型定義
 	params := request.URL.Query()
 	if userID != "" {
 		params.Add("user_id",userID)
@@ -234,6 +235,7 @@ func VideoList(sortType VideoSortType, limit int, userID string) ([]Video,error)
 
 	byteArray,_ := io.ReadAll(response.Body)
 	videos := []Video{}
+	//&videos(Goの構造体)にjsonのbyte列を書き込み、バイト列ではなくなってGoの構造体へ
 	err = json.Unmarshal(byteArray,&videos)
 	if err != nil {
 		return nil,err
@@ -241,10 +243,11 @@ func VideoList(sortType VideoSortType, limit int, userID string) ([]Video,error)
 	if len(videos) > 0 {
 		ids := make([]int,len(videos))
 		for i,v := range videos {
+			//[]intに動画のidを入れていく
 			ids[i] = v.ID
 		}
 		type stat struct {
-			VideoID int `gorm:"column:video_id`
+			VideoID int `gorm:"column:video_id"`
 			TotalViews int64 `gorm:"column:total_views"`
 			AverageRate float64 `gorm:"column:average_rate"`
 		}

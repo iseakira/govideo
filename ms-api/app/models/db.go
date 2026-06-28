@@ -19,7 +19,7 @@ func connectDb() (db *gorm.DB, err error) {
 		config.Config.DbHost,
 		config.Config.DbPort,
 		config.Config.DbUser,
-			config.Config.DbName,
+		config.Config.DbName,
 		config.Config.DbPassword,
 		config.Config.DbSslMode,
 
