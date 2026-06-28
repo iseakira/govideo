@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/gin-gonic/gin v1.12.0
+	github.com/vearne/gin-timeout v0.2.3
 	gopkg.in/ini.v1 v1.67.3
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.2

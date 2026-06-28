@@ -4,7 +4,11 @@ import (
 	"io"
 	"log"
 	"ms-api/config"
+	"net/http"
 	"os"
+
+	"github.com/gin-gonic/gin"
+	timeout "github.com/vearne/gin-timeout"
 )
 
 func LoggingSettings(logFile string) {
@@ -20,6 +24,20 @@ func LoggingSettings(logFile string) {
 	log.SetOutput(multiLogFile)
 }
 
+func StartServer() {
+	engine := gin.Default()
+	engine.Use(
+		timeout.Timeout(
+			timeout.WithTimeout(config.Config.APITimeout),
+			timeout.WithErrorHttpCode(http.StatusRequestTimeout),
+			timeout.WithCallBack(func(r *http.Request) {
+				log.Println("Request Timeout:",r.URL.String())
+			})),
+	)
+	engine.Run(":8080")
+}
+
 func main() {
 	LoggingSettings(config.Config.LogFile)
+	StartServer()
 }
