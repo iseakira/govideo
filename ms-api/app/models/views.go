@@ -11,7 +11,7 @@ type Views struct {
 	UpdatedAt time.Time `json:"updatedAt,omitempty" gorm:"autoUpdateTime"`
 }
 
-func CrateViews(userID string,videoID int) (*Views,error) {
+func CreateViews(userID string,videoID int) (*Views,error) {
 	views := &Views{
 		VideoID: videoID,
 		UserID:userID,

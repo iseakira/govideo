@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"log"
+	"ms-api/app/controllers"
 	"ms-api/config"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ func LoggingSettings(logFile string) {
 		log.Fatalf("file=logFile err=%s",err.Error())
 	}
 
+
 	multiLogFile := io.MultiWriter(os.Stdout,logfile)
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
@@ -26,6 +28,7 @@ func LoggingSettings(logFile string) {
 
 func StartServer() {
 	engine := gin.Default()
+
 	engine.Use(
 		timeout.Timeout(
 			timeout.WithTimeout(config.Config.APITimeout),
@@ -35,6 +38,12 @@ func StartServer() {
 			})),
 	)
 	engine.Run(":8080")
+
+	v1 := engine.Group("/api/v1")
+
+	v1.GET("/health", controllers.Health)
+
+
 }
 
 func main() {
