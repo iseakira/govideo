@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"ms-api/app/controllers"
+	"ms-api/auth"
 	"ms-api/config"
 	"net/http"
 	"os"
@@ -34,14 +35,49 @@ func StartServer() {
 			timeout.WithTimeout(config.Config.APITimeout),
 			timeout.WithErrorHttpCode(http.StatusRequestTimeout),
 			timeout.WithCallBack(func(r *http.Request) {
+
 				log.Println("Request Timeout:",r.URL.String())
 			})),
 	)
 	engine.Run(":8080")
 
+	rateController := controllers.NewRate()
+	thumbnailController := controllers.NewThumbnail()
+	videoController := controllers.NewVideo()
+	viewsController := controllers.NewViews()
+	internalRequestMiddleWare := auth.NewInternalRequestMiddleWare(config.Config.InternalServiceSecret)
+
 	v1 := engine.Group("/api/v1")
 
-	v1.GET("/health", controllers.Health)
+	{
+		v1.GET("/health", controllers.Health)
+
+		videos := v1.Group("/videos")
+		{
+			videos.GET(":id/rate/average",rateController.Average)
+			videos.GET("id/thumbnail",thumbnailController.GetThumbnail)
+			videos.GET("id/views/total",viewsController.Total)
+
+			if config.Config.AuthEnable {
+				videos.GET("",videoController.List)
+				videos.GET(":id", videoController.Get)
+				videos.GET(":id/rate",internalRequestMiddleWare.CheckInternalAuth(),rateController.Get)
+				videos.POST("upload",internalRequestMiddleWare.CheckInternalAuth(),videoController.Upload)
+				videos.POST(":id/views",internalRequestMiddleWare.CheckInternalAuth(),viewsController.Add)
+				videos.PATCH(":id/rate",internalRequestMiddleWare.CheckInternalAuth(),rateController.Update)
+			}else {
+				videos.GET("",videoController.List)
+				videos.GET(":id",videoController.Get)
+				videos.GET(":id/rate",rateController.Get)
+				videos.POST("upload",videoController.Upload)
+				videos.POST(":id/views",viewsController.Add)
+				videos.PATCH(":id/rate",rateController.Update)
+			}
+		}
+
+	}
+
+
 
 
 }
