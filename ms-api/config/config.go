@@ -65,7 +65,7 @@ func init() {
 
 	cfg,err := ini.Load(configFilePath)
 
-	if err == nil {
+	if err != nil {
 		log.Fatalln("Failed to read file",err)
 		os.Exit(1)
 	}

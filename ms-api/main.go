@@ -39,7 +39,6 @@ func StartServer() {
 				log.Println("Request Timeout:",r.URL.String())
 			})),
 	)
-	engine.Run(":8080")
 
 	rateController := controllers.NewRate()
 	thumbnailController := controllers.NewThumbnail()
@@ -55,8 +54,8 @@ func StartServer() {
 		videos := v1.Group("/videos")
 		{
 			videos.GET(":id/rate/average",rateController.Average)
-			videos.GET("id/thumbnail",thumbnailController.GetThumbnail)
-			videos.GET("id/views/total",viewsController.Total)
+			videos.GET(":id/thumbnail",thumbnailController.GetThumbnail)
+			videos.GET(":id/views/total",viewsController.Total)
 
 			if config.Config.AuthEnable {
 				videos.GET("",videoController.List)
@@ -77,9 +76,7 @@ func StartServer() {
 
 	}
 
-
-
-
+	engine.Run(":8080")
 }
 
 func main() {

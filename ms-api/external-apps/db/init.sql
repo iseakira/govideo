@@ -28,7 +28,7 @@ CREATE TABLE views (
     PRIMARY KEY ("id")
 );
 
-INSERT INTO videos VALUES(1,'user1','title 1','2000-01-01 00:00:00', '2000-01-01 00:00:00')
+INSERT INTO videos VALUES(1,'user_1','title 1','2000-01-01 00:00:00', '2000-01-01 00:00:00');
 INSERT INTO videos VALUES(2, 'user_2', 'title 2', '2000-01-01 00:00:00', '2000-01-01 00:00:00');
 INSERT INTO videos VALUES(3, 'user_3', 'title 3', '2000-01-01 00:00:00', '2000-01-01 00:00:00');
 INSERT INTO videos VALUES(4, 'user_4', 'title 4', '2000-01-01 00:00:00', '2000-01-01 00:00:00');

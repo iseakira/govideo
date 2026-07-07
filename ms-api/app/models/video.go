@@ -196,9 +196,9 @@ func VideoList(sortType VideoSortType, limit int, userID string) ([]Video,error)
 		videos := []Video{}
 		//.ModelはDbConnectionの作業用インスタンスをはやす
 		query := DbConnection.Model(&Video{}).
-		Select("videos.*,COALESCE(v.view_count,0) AS total_views, COALESCE(r.avg_rate,o) AS average_rate").
+		Select("videos.*,COALESCE(v.view_count,0) AS total_views, COALESCE(r.avg_rate,0) AS average_rate").
 		Joins("LEFT JOIN (SELECT video_id, count(id) AS view_count FROM views GROUP BY video_id) AS v ON videos.id = v.video_id").
-		Joins("LEFT JOIN (SELECT video_id, avg(value) AS avg_rate FOM rates GROUP BY video_id) AS r ON videos.id = r.video_id").
+		Joins("LEFT JOIN (SELECT video_id, avg(value) AS avg_rate FROM rates GROUP BY video_id) AS r ON videos.id = r.video_id").
 		Order("COALESCE(v.view_count,0) DESC")
 
 		if limit != 0{

@@ -1,5 +1,6 @@
 APP_NAME = ms-api
 EXTERNAL_APPS = postgresql
+AUTH_ENABLE ?= false
 .PHONY: help external-up external-down external-clean docker-build docker-build-no-cache docker-run
 
 external-up: ## Start PostgreSQL for local development
@@ -21,6 +22,7 @@ docker-run: ## Run the Docker container locally
 	docker run --rm \
 		--add-host=localhost:host-gateway \
 		--publish 8080:8080 \
+		--env AUTH_ENABLE=$(AUTH_ENABLE) \
 		--volume=assets:/go/src/$(APP_NAME)/assets \
 		--volume=logs:/go/src/$(APP_NAME)/logs \
 		--name $(APP_NAME) \
