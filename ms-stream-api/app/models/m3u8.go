@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"log"
 
 	"ms-stream-api/config"
 )
@@ -20,8 +21,11 @@ func NewM3u8File(file *os.File) M3u8File {
 }
 
 func (t M3u8File) Bytes() []byte {
+	defer t.File.Close()
 	buffer := new(bytes.Buffer)
-	io.Copy(buffer,t.File)
+ if _, err := io.Copy(buffer, t.File); err != nil {
+        log.Println(err)          // 読み込み失敗を検知できる
+    }
 	return buffer.Bytes()
 }
 

@@ -1,0 +1,15 @@
+services:
+  ms-stream-api:
+    image: ms-stream-api:latest
+    container_name: ms-stream-api
+    ports:
+      - 8081:8081
+    extra_hosts:
+      - localhost:host-gateway
+    volumes:
+      - ./logs:/app/logs
+      - ./assets:/app/assets
+
+    hostname: ms-stream-api
+    restart: always
+    user: root
